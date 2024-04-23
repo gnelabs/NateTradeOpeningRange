@@ -1,0 +1,8 @@
+#Ignore compiled files that tend to stay around after local container testing.
+*.pyc
+
+#Environment variables.
+env.list
+
+#Random notes.
+notes.txt
