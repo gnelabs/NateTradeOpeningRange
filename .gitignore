@@ -6,3 +6,6 @@ env.list
 
 #Random notes.
 notes.txt
+
+#Local cache files.
+*.pkl
