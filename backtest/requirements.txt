@@ -1,3 +1,4 @@
 #Dependencies used in this library. 
 #pip install -r requirements.txt
-mysql-connector-python==8.3.0
+celery==5.4.0
+redis==5.0.4
