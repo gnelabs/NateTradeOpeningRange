@@ -175,4 +175,4 @@ class StatsAdHoc(object):
         try:
             return np.corrcoef(comparison_returns, spy_returns)[0][1]
         except IndexError:
-            return 0
+            return 0.0
