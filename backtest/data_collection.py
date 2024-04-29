@@ -5,6 +5,7 @@ import logging
 from statistics import fmean
 from collections import defaultdict
 from datetime import datetime, timezone
+import numpy as np
 from dw.natetrade_database import DatabaseHelper
 
 _LOGGER = logging.getLogger()
@@ -127,3 +128,51 @@ class CollectOpeningRanges(object):
         data = HELPER.generic_select_query('options', query)
 
         return data
+
+
+class StatsAdHoc(object):
+    def __init__(self):
+        pass
+
+    def query_correlation(self, ticker:str) -> list:
+        """
+        Query correlation to SPY.
+        """
+        query = """
+        SELECT ticker, date, close_price
+        FROM stocks.daily_underlying
+        WHERE ticker IN ('SPY', '{ticker}')
+        ;
+        """.format(
+            ticker = ticker
+        )
+
+        data = HELPER.generic_select_query('stocks', query)
+
+        return data
+    
+    def process_correlation(self, raw_price_data:list) -> float:
+        """
+        Calculate long term correlation to the SP500.
+        """
+        spy_returns = []
+        comparison_returns = []
+        match_timeseries = {}
+
+        #First pass, get SPY dates to match i.e. inner join
+        for row in raw_price_data:
+            if row['ticker'] == 'SPY':
+                match_timeseries[str(row['date'])] = row['close_price']
+        
+        #Second pass, combine
+        for row in raw_price_data:
+            if row['ticker'] != 'SPY':
+                #Ignore dates where this is mismatched information.
+                if str(row['date']) in match_timeseries:
+                    spy_returns.append(match_timeseries[str(row['date'])])
+                    comparison_returns.append(row['close_price'])
+        
+        try:
+            return np.corrcoef(comparison_returns, spy_returns)[0][1]
+        except IndexError:
+            return 0

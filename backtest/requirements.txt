@@ -2,3 +2,4 @@
 #pip install -r requirements.txt
 celery==5.4.0
 redis==5.0.4
+numpy==1.26.4
