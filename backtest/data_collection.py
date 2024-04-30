@@ -4,7 +4,7 @@ __author__ = "Nathan Ward"
 import logging
 from statistics import fmean
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 import numpy as np
 from dw.natetrade_database import DatabaseHelper
 
@@ -133,7 +133,7 @@ class CollectOpeningRanges(object):
 class StatsAdHoc(object):
     def __init__(self):
         pass
-
+    
     def query_correlation(self, ticker:str) -> list:
         """
         Query correlation to SPY.
@@ -176,3 +176,54 @@ class StatsAdHoc(object):
             return np.corrcoef(comparison_returns, spy_returns)[0][1]
         except IndexError:
             return 0.0
+    
+    def find_next_mopex_expiration(self) -> str:
+        """
+        Any security with an active options chain is going to have monthly experiration
+        options. Calculate the next closest one.
+
+        Stolen from stack overflow https://stackoverflow.com/a/47931869
+        """
+        today = date.today()
+
+        if today > date(today.year, today.month, 15):
+            third = date(today.year, today.month + 1, 15)
+        else:
+            third = date(today.year, today.month, 15)
+
+        w = third.weekday()
+
+        if w != 4:
+            third = third.replace(day=(15 + (4 - w) % 7))
+        
+        return str(third)
+    
+    def pull_atm_vol(self, ticker:str) -> float:
+        """
+        Pull the at the money vol surface for a ticker, average it out to get
+        a good-enough implied volatility used as an indicator.
+        """
+        query = """
+        SELECT implied_volatility
+        FROM `options`.`greeks`
+        WHERE timestamp_utc BETWEEN {start_range} AND {end_range}
+        AND (timestamp_utc % 10) = 0
+        AND ticker = '{ticker}'
+        AND expiration = '{expiration}'
+        AND strike > (underlying  * 0.9)
+        AND strike < (underlying * 1.1)
+        ;
+        """.format(
+            start_range = int(datetime.now(timezone.utc).timestamp()) - 86400,
+            end_range = int(datetime.now(timezone.utc).timestamp()),
+            ticker = ticker,
+            expiration = self.find_next_mopex_expiration()
+        )
+
+        data = HELPER.generic_select_query('stocks', query)
+
+        result = []
+        for item in data:
+            result.append(item['implied_volatility'])
+
+        return fmean(result)
