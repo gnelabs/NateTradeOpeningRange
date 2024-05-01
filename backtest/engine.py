@@ -10,54 +10,23 @@ _LOGGER.setLevel(logging.INFO)
 
 class ProcessOpeningRanges(object):
     def __init__(self):
-        #Markets are usually open for normal hours, at least, assume that is the case.
-        self.market_open_duration = 23400
-
         #Adjustable stop distance for trading. To-do: Research this
         self.stop_distance = 0.25
 
         #Adjustable count of times stop loss is hit. To-do: Research this
         self.stop_count_limit = 4
 
-        #adjustable cooloff period in seconds between the stop getting hit before the next trade can commence.
+        #Adjustable cooloff period in seconds between the stop getting hit before the next trade can commence.
         self.stop_cooloff_period = 30
 
-    def pull_intraday_market_data(self, starting_epoch_range:int, ticker:str) -> list:
-        """
-        Query the DB for intraday price data within the range.
-
-        Should take about ~2 seconds on average per query, returning a max of 70k rows.
-        """
-        query = """
-        SELECT DISTINCT timestamp_utc, underlying
-        FROM `options`.`greeks`
-        WHERE timestamp_utc BETWEEN {open_range} AND {closing_range}
-        AND ticker = '{ticker}'
-        """.format(
-            open_range = starting_epoch_range,
-            closing_range = starting_epoch_range + self.market_open_duration,
-            ticker = ticker
-        )
-
-        data = HELPER.generic_select_query('options', query)
-
-        return data
+        #Adjustable take profit distance. To-do: Research this
+        self.limit_distance = 5
     
     def backtest(self, open_price:float, range_high:float, range_low:float, intraday_data:list) -> dict:
         """
         Using intraday data collected for each day, perform analysis based on breakouts from the
         opening range as provided.
         """
-        #First level, distance between opening and range high
-        level_one_profit_bullish = range_high - open_price
-        level_one_profit_bearish = open_price - range_low
-
-        #Second level, distance between range low and range high
-        level_two_profit = range_high - range_low
-
-        #Third level, overfit to recreate a profit level that is positively expectant
-        level_three_profit = 5
-
         #Keep track of how long the holding period is in seconds for each trade to do risk analysis.
         holding_period = []
 
@@ -96,14 +65,14 @@ class ProcessOpeningRanges(object):
                     holding_period.append(data['timestamp_utc'])
                     trade_is_long = True
                     stop_price = data['underlying'] - self.stop_distance
-                    limit_price = data['underlying'] + level_three_profit
+                    limit_price = data['underlying'] + self.limit_distance
                 #Bearish breakout below the opening range.
                 elif data['underlying'] < range_low:
                     trade_tracker.append(data['underlying'])
                     holding_period.append(data['timestamp_utc'])
                     trade_is_long = False
                     stop_price = data['underlying'] + self.stop_distance
-                    limit_price = data['underlying'] - level_three_profit
+                    limit_price = data['underlying'] - self.limit_distance
             else:
                 #Bullish breakout logic
                 if trade_is_long:
@@ -115,7 +84,7 @@ class ProcessOpeningRanges(object):
                         limit_price = 0
                         break
                     #Stop hit on the downside
-                    elif data['underlying'] < stop_price:
+                    elif data['underlying'] < stop_price or data == intraday_data[-1]:
                         trade_tracker[-1] = stop_price - trade_tracker[-1]
                         holding_period[-1] = data['timestamp_utc'] - holding_period[-1]
                         stop_price = 0
@@ -132,7 +101,7 @@ class ProcessOpeningRanges(object):
                         limit_price = 0
                         break
                     #Stop hit on the upside
-                    elif data['underlying'] > stop_price:
+                    elif data['underlying'] > stop_price or data == intraday_data[-1]:
                         trade_tracker[-1] = trade_tracker[-1] - stop_price
                         holding_period[-1] = data['timestamp_utc'] - holding_period[-1]
                         stop_price = 0
