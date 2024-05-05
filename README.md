@@ -46,17 +46,52 @@ for k, v in opening_ranges_organized[ticker_to_investigate].items():
 cache_obj.save(agg_data)
 ```
 
-## Simple backtest
+## Backtest example, test a combination of stop iterations, cooloff periods, stop ranges and limit ranges.
 ``` python
-profit_tracker = {}
-for k, v in agg_data.items():
-    result = backtester.backtest(
-      open_price = opening_ranges_organized[ticker_to_investigate][k]['open_price'],
-      range_high = opening_ranges_organized[ticker_to_investigate][k]['high'],
-      range_low = opening_ranges_organized[ticker_to_investigate][k]['low'],
-      intraday_data = v
-    )
-    profit_tracker[k] = result['net_profit']
+cleaned_data = backtester.compress_time_series(agg_data)
 
-print('Net profit: ', sum(profit_tracker.values()))
+def test():
+    for stopiteration in range(1, 4):
+        for cooloff in range(10, 300, 120):
+            for stop in range(50, 250, 25):
+                for limit in range(1, 10):
+                    profit_tracker = {}
+                    for k_date, v_cleaned_data in cleaned_data.items():
+                        #stop distance, in basis points relative to the open price
+                        backtester.stop_distance = (opening_ranges_organized[ticker_to_investigate][k_date]['open_price'] * 0.0001) * stop
+                        #limit distance, in percentage terms relative to the open price
+                        backtester.limit_distance = (opening_ranges_organized[ticker_to_investigate][k_date]['open_price'] * 0.01) * limit
+                        #cooloff period
+                        backtester.stop_cooloff_period = cooloff
+                        #number of Stops
+                        backtester.stop_count_limit = stopiteration
+                        result = backtester.backtest_redux(
+                            opening_range_info = opening_ranges_organized[ticker_to_investigate][k_date],
+                            compressed_agg_data = v_cleaned_data
+                        )
+                        profit_tracker[k_date] = result['net_profit']
+                    win_rate = []
+                    for v in profit_tracker.values():
+                        if v > 0:
+                            win_rate.append(True)
+                        else:
+                            win_rate.append(False)
+                    if sum(profit_tracker.values()) > 0:
+                        print(
+                            'Stops: ',
+                            stopiteration,
+                            ' Cooloff: ',
+                            cooloff,
+                            ' Stop dis: ',
+                            stop,
+                            'bp',
+                            ' Limit dis: ',
+                            limit,
+                            '%',
+                            ' Net profit: ',
+                            round(sum(profit_tracker.values()), 2),
+                            ' Win rate: ',
+                            round((win_rate.count(True) / len(win_rate) * 100)),
+                            '%'
+                        )
 ```
