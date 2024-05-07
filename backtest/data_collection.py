@@ -77,6 +77,7 @@ class CollectOpeningRanges(object):
         opening range information.
         """
         organized_data = defaultdict(dict)
+        vol_data = defaultdict(dict)
 
         #First pass, populate tickers and initial data structure.
         for row in range_data:
@@ -86,6 +87,7 @@ class CollectOpeningRanges(object):
         #Second pass, populate dates and the rest of the data.
         for row in range_data:
             date = datetime.fromtimestamp(row['timestamp_utc']).strftime('%Y-%m-%d')
+
             if date not in organized_data[row['ticker']]:
                 organized_data[row['ticker']][date] = {
                     'open_price': row['underlying'],
@@ -94,6 +96,12 @@ class CollectOpeningRanges(object):
                     'count_trades': 1,
                     'trading_start': row['timestamp_utc']
                 }
+
+                vol_data[row['ticker']][date] = []
+
+                #Capture close-ish ATM vol, good enough. This removes skewness.
+                if abs(row['delta']) > 0.4 and abs(row['delta']) < 0.6:
+                    vol_data[row['ticker']][date].append(row['implied_volatility'])
             else:
                 #To support variable opening ranges, skip timestamps after the test range.
                 if row['timestamp_utc'] > range_duration_to_test + organized_data[row['ticker']][date]['trading_start']:
@@ -109,6 +117,17 @@ class CollectOpeningRanges(object):
                     
                     if row['timestamp_utc'] > organized_data[row['ticker']][date]['trading_start']:
                         organized_data[row['ticker']][date]['trading_start'] = row['timestamp_utc']
+                    
+                    #Capture close-ish ATM vol, good enough.
+                    if abs(row['delta']) > 0.4 and abs(row['delta']) < 0.6:
+                        vol_data[row['ticker']][date].append(row['implied_volatility'])
+
+        #Third pass, average out vol.
+        #This does not take into account gamme/expiration and the term structure.
+        for ticker, date_data in vol_data.items():
+            for date, vol_list in date_data.items():
+                if len(vol_list) > 1:
+                    organized_data[ticker][date]['avg_vol'] = fmean(vol_list)
 
         return organized_data
     
