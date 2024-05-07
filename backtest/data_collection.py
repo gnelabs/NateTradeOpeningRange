@@ -58,12 +58,12 @@ class CollectOpeningRanges(object):
             )
         
         query = """
-        SELECT timestamp_utc, ticker, underlying
+        SELECT timestamp_utc, ticker, underlying, delta, implied_volatility
         FROM `options`.`greeks`
         WHERE timestamp_utc BETWEEN {initial_open} AND {initial_end} {statement};
         """.format(
             initial_open = self.high_resolution_beginning_date_epoch,
-            initial_end = self.high_resolution_beginning_date_epoch + 30,
+            initial_end = self.high_resolution_beginning_date_epoch + self.opening_range_duration,
             statement = statement
         )
 
@@ -71,7 +71,7 @@ class CollectOpeningRanges(object):
 
         return data
     
-    def organize_opening_range_data(self, range_data:list) -> dict:
+    def organize_opening_range_data(self, range_data:list, range_duration_to_test:int) -> dict:
         """
         Cleans up the data from the database based on the security, and gives the 
         opening range information.
@@ -95,16 +95,20 @@ class CollectOpeningRanges(object):
                     'trading_start': row['timestamp_utc']
                 }
             else:
-                organized_data[row['ticker']][date]['count_trades'] += 1
+                #To support variable opening ranges, skip timestamps after the test range.
+                if row['timestamp_utc'] > range_duration_to_test + organized_data[row['ticker']][date]['trading_start']:
+                    continue
+                else:
+                    organized_data[row['ticker']][date]['count_trades'] += 1
 
-                if row['underlying'] > organized_data[row['ticker']][date]['high']:
-                    organized_data[row['ticker']][date]['high'] = row['underlying']
-                
-                if row['underlying'] < organized_data[row['ticker']][date]['low']:
-                    organized_data[row['ticker']][date]['low'] = row['underlying']
-                
-                if row['timestamp_utc'] > organized_data[row['ticker']][date]['trading_start']:
-                    organized_data[row['ticker']][date]['trading_start'] = row['timestamp_utc']
+                    if row['underlying'] > organized_data[row['ticker']][date]['high']:
+                        organized_data[row['ticker']][date]['high'] = row['underlying']
+                    
+                    if row['underlying'] < organized_data[row['ticker']][date]['low']:
+                        organized_data[row['ticker']][date]['low'] = row['underlying']
+                    
+                    if row['timestamp_utc'] > organized_data[row['ticker']][date]['trading_start']:
+                        organized_data[row['ticker']][date]['trading_start'] = row['timestamp_utc']
 
         return organized_data
     

@@ -20,8 +20,12 @@ from backtest.engine import ProcessOpeningRanges
 collect_or_object = CollectOpeningRanges()
 backtester = ProcessOpeningRanges()
 
+collect_or_object.opening_range_duration = 30
 opening_ranges_all_securities = collect_or_object.get_opening_range_data(collect_or_object.epoch_date_ranges())
-opening_ranges_organized = collect_or_object.organize_opening_range_data(opening_ranges_all_securities)
+opening_ranges_organized = collect_or_object.organize_opening_range_data(
+    range_data = opening_ranges_all_securities,
+    range_duration_to_test = 30
+)
 
 ticker_to_investigate = 'SPY'
 cache_obj = CachedData(ticker_to_investigate)
@@ -38,7 +42,7 @@ cache_obj = CachedData(ticker_to_investigate)
 
 agg_data = {}
 for k, v in opening_ranges_organized[ticker_to_investigate].items():
-    agg_data[k] = backtester.pull_intraday_market_data(
+    agg_data[k] = collect_or_object.pull_intraday_market_data(
         ticker = ticker_to_investigate,
         starting_epoch_range = v['trading_start']
     )
