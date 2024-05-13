@@ -198,3 +198,4 @@ class ProcessOpeningRanges(object):
             'net_profit': sum(k['profit'] for k in trade_stats.values()),
             'trade_stats': trade_stats
         }
+

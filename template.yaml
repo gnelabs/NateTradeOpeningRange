@@ -1,0 +1,172 @@
+#Author: Nathan ward
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Opening range trading strategy, parallel backtesting system.
+
+Globals:
+  Function:
+    #Documentation and other DeploymentPreference Types can be found here: https://github.com/awslabs/serverless-application-model/blob/master/docs/safe_lambda_deployments.rst
+    AutoPublishAlias: live
+    DeploymentPreference:
+      Type: AllAtOnce
+  Api:
+    BinaryMediaTypes:
+      #The ~1 will be replaced with / when deployed
+      - '*~1*'
+
+Parameters:
+  AttachLambdaFunctionToVPC: { Type: String, Default: 'false', AllowedValues: ['true', 'false']}
+  Stage: {Type: String, Default: 'prod'}
+  ServiceName: {Type: String, Default: 'NateTradeOpeningRange'}
+
+Conditions:
+  RunLambdaInVPC:
+    Fn::Equals: [ {Ref: AttachLambdaFunctionToVPC}, "true"]
+  IsProd:
+    Fn::Equals:
+      - Ref: Stage
+      - prod
+
+#CIDR subnet mappings of available IP addresses in the VPC.
+Mappings:
+  SubnetConfig:
+    VPC:
+      CIDR: '10.0.0.0/16'
+    PublicOne:
+      CIDR: '10.0.0.0/24'
+    PublicTwo:
+      CIDR: '10.0.1.0/24'
+
+Resources:
+  ################### Networking Resources ###################
+  #Setup the VLAN and VPC for containers to run in. This is required
+  #to use Elasticache with low latency networking.
+
+  #VPC for lambdas to be able to access Redis
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: !FindInMap ['SubnetConfig', 'VPC', 'CIDR']
+
+  #Internet gateway is required to give containers access to
+  #the internet, if needed.
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachement:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref 'VPC'
+      InternetGatewayId: !Ref 'InternetGateway'
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachement
+    Properties:
+      RouteTableId: !Ref 'PublicRouteTable'
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref 'InternetGateway'
+  PublicSubnetOneRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetOne
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetTwoRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetTwo
+      RouteTableId: !Ref PublicRouteTable
+
+  #Two public subnets, where containers can have public IP addresses.
+  PublicSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+         Fn::Select:
+         - 0
+         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      VpcId: {Ref: VPC}
+      CidrBlock: !FindInMap ['SubnetConfig', 'PublicOne', 'CIDR']
+      MapPublicIpOnLaunch: true
+  PublicSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+         Fn::Select:
+         - 1
+         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      VpcId: {Ref: VPC}
+      CidrBlock: !FindInMap ['SubnetConfig', 'PublicTwo', 'CIDR']
+      MapPublicIpOnLaunch: true
+
+  ################### Elasticache Redis ###################
+  #Resources and permissions to setup the Redis database.
+
+  #Subnet group to control where the Redis gets placed
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Group of subnets to place Redis into
+      SubnetIds:
+        - {Ref: PublicSubnetOne}
+        - {Ref: PublicSubnetTwo}
+
+  #Security group to add Redis cluster to the VPC.
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Redis Security Group"
+      VpcId: {Ref: VPC}
+
+  #Debug access to Redis, directly from my IP.
+  RedisDebugIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Debug access to Redis.
+      GroupId: {Ref: RedisSecurityGroup}
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      CidrIp: 104.133.24.97/32
+
+  ################### Processing Lambda ###################
+  #Lambda function triggered by even loop to perform a backtest
+  #of a single security at a single date using the specified
+  #parameters.
+  MainBacktestLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Lambda function to perform a backtest.
+      MemorySize: 128
+      Handler: lambda_functions.lambda_handler
+      Runtime: python3.12
+      CodeUri: backtest/
+      Timeout: 120
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt 'RedisSecurityGroup.GroupId'
+        SubnetIds:
+          - {Ref: PublicSubnetOne}
+          - {Ref: PublicSubnetTwo}
+      Environment:
+        Variables:
+          REDIS_SECURITY_GROUP_ID: !GetAtt 'RedisSecurityGroup.GroupId'
+          REDIS_SUBNET_GROUP_NAME: {Ref: RedisSubnetGroup}
+
+Outputs:
+  StackArn:
+    Description: "Use this as the stack_arn in your cloud_formation_deployment_stack override."
+    Value: {Ref: 'AWS::StackId'}
+  RedisSecurityGroupId:
+    Description: "Redis cluster security group ID."
+    Value: !GetAtt 'RedisSecurityGroup.GroupId'
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-RedisSecurityGroupId'}}
+  RedisSubnetGroupName:
+    Description: "Redis cluster subnet group name."
+    Value: {Ref: RedisSubnetGroup}
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-RedisSubnetGroupName'}}

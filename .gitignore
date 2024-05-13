@@ -10,3 +10,7 @@ example_queries.txt
 
 #Local cache files.
 cached_data/*.pkl
+
+#Environment-specific sam configuration file.
+samconfig.toml
+.aws-sam/
