@@ -90,7 +90,6 @@ class Redis(object):
         """
         Using cluster info, grab the endpoint for general storage.
         """
-        _LOGGER.info('4 started get_general_storage_endpoint')
         try:
             return self.describe_cluster()['backteststorage']
         except KeyError:
