@@ -201,3 +201,11 @@ Outputs:
     Description: "Redis cluster subnet group name."
     Value: {Ref: RedisSubnetGroup}
     Export: {Name: {'Fn::Sub': '${AWS::StackName}-RedisSubnetGroupName'}}
+  VPCSubnetIDOne:
+    Description: "VPC subnet ID one."
+    Value: {Ref: PublicSubnetOne}
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-VPCSubnetIDOne'}}
+  VPCSubnetIDTwo:
+    Description: "VPC subnet ID two."
+    Value: {Ref: PublicSubnetTwo}
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-VPCSubnetIDTwo'}}

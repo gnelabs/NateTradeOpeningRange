@@ -2,7 +2,6 @@
 __author__ = "Nathan Ward"
 
 import logging
-from os import environ
 from boto3 import client
 
 _LOGGER = logging.getLogger()
@@ -22,13 +21,36 @@ class Redis(object):
         self.cluster_config = {
             'backteststorage': 'cache.t4g.medium'
         }
+
+        #Cloudformation stack name.
+        self.cf_stack_name = 'NateTradeOpeningRange'
         
-        self.elasticache_client = client('elasticache')
+        self.elasticache_client = client('elasticache', region_name='us-east-2')
+        self.cf_client = client('cloudformation', region_name='us-east-2')
+    
+    def get_cf_outputs(self) -> dict:
+        """
+        Grab output values from the cloudformation stack to know where to put
+        the redis database.
+        """
+        stack_info = self.cf_client.describe_stacks(StackName=self.cf_stack_name)
+        data = {}
+
+        for item in stack_info['Stacks'][0]['Outputs']:
+            try:
+                data[item['OutputKey']] = item['OutputValue']
+            except KeyError:
+                _LOGGER.exception('Unable to collect outputs from cloudformation stack. {0}'.format(e))
+                raise ElastiCacheError('Unable to collect outputs from cloudformation stack. {0}'.format(e))
+        
+        return data
     
     def start_redis(self) -> None:
         """
         Start Elasticache Redis clusters.
         """
+        cf_info = self.get_cf_outputs()
+
         for cluster_name, instance_size in self.cluster_config.items():
             try:
                 response = self.elasticache_client.create_cache_cluster(
@@ -37,9 +59,9 @@ class Redis(object):
                     NumCacheNodes = 1,
                     CacheNodeType = instance_size,
                     Engine = 'redis',
-                    CacheSubnetGroupName = environ['REDIS_SUBNET_GROUP_NAME'],
+                    CacheSubnetGroupName = cf_info['RedisSubnetGroupName'],
                     SecurityGroupIds = [
-                        environ['REDIS_SECURITY_GROUP_ID']
+                        cf_info['RedisSecurityGroupId']
                     ],
                     PreferredMaintenanceWindow = 'sat:01:00-sat:03:00',
                     Port = 6379

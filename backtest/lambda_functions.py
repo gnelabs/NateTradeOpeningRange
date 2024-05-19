@@ -18,7 +18,7 @@ def lambda_handler(event, context):
     print('library loaded')
     #redis_hostname = meow.get_backtest_redis_endpoint()
     print(socket.getaddrinfo('backteststorage.9rdaay.0001.use2.cache.amazonaws.com', 6379))
-    redis_hostname = '10.0.1.237'
+    redis_hostname = 'backteststorage.9rdaay.0001.use2.cache.amazonaws.com'
     print('Found redis hostname: {0}'.format(redis_hostname))
     r = redis.Redis(host=redis_hostname, port=6379, db=0, decode_responses=True)
     print('test2')
