@@ -43,7 +43,7 @@ Resources:
   #Setup the VLAN and VPC for containers to run in. This is required
   #to use Elasticache with low latency networking.
 
-  #VPC for lambdas to be able to access Redis
+  #VPC for virtual machines to be able to access Redis
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -156,38 +156,109 @@ Resources:
       ToPort: 6379
       SourceSecurityGroupId: !GetAtt 'RedisSecurityGroup.GroupId'
 
-  ################### Processing Lambda ###################
-  #Lambda function triggered by even loop to perform a backtest
-  #of a single security at a single date using the specified
-  #parameters.
-  MainBacktestLambda:
-    Type: AWS::Serverless::Function
+  ################### ECS Cluster ###################
+  #ECS cluster used to run processing machines for crunching numbers.
+
+  #ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
     Properties:
-      Description: Lambda function to perform a backtest.
-      MemorySize: 128
-      Handler: lambda_functions.lambda_handler
-      Runtime: python3.12
-      CodeUri: backtest/
-      Timeout: 5
+      ClusterName: NateTradeOpeningRange
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+        - CapacityProvider: FARGATE_SPOT
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  #General purpose role needed by ECS and lambda to start tasks.
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [!Ref ServiceName, ExecutionRole]]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+
+  #ECR repo for docker images.
+  OpeningRangeRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: 'natetrade/opening_range'
+
+  ################### ECS Task ###################
+  #This contains the task definition and logging needed to run contaniers.
+  #These containers will run a celery worker to consume requests and 
+  #do number crunching, returning the result back to redis.
+  #These are unoptimized.
+
+  #Log group for ECS.
+  LogGroupOpeningRange:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [/ecs/, !Ref ServiceName, OpeningRange]]
+      RetentionInDays: 30
+
+  #Task definition.
+  TaskDefinitionOpeningRange:
+    Type: AWS::ECS::TaskDefinition
+    # Makes sure the log group is created before it is used.
+    DependsOn: LogGroupOpeningRange
+    Properties:
+      Family: !Join ['', [!Ref ServiceName, OpeningRange]]
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 1024
+      Memory: 4GB
+      ExecutionRoleArn: { 'Fn::GetAtt' : ExecutionRole.Arn}
+      TaskRoleArn: !Ref TaskRoleOpeningRange
+      ContainerDefinitions:
+        - Name: !Join ['', [!Ref ServiceName, OpeningRange]]
+          Image: { 'Fn::Join' : [ ':', [ { 'Fn::GetAtt' : OpeningRangeRepo.RepositoryUri}, 'latest']]}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroupOpeningRange
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: 'CELERY_QUEUE_NAME'
+              Value: 'worker_main'
+
+  #Permissions for the ECS tasks.
+  TaskRoleOpeningRange:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [!Ref ServiceName, TaskRoleOpeningRange]]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
       Policies:
-        - CloudWatchPutMetricPolicy: {}
-        - Version: '2012-10-17'
-          #Access to describe elasticache databases to get hostname.
-          Statement:
-          - Action:
-            - elasticache:DescribeCacheClusters
-            Effect: Allow
-            Resource: {'Fn::Sub': 'arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:cluster:*'}
-      VpcConfig:
-        SecurityGroupIds:
-          - !GetAtt 'RedisSecurityGroup.GroupId'
-        SubnetIds:
-          - {Ref: PublicSubnetOne}
-          - {Ref: PublicSubnetTwo}
-      Environment:
-        Variables:
-          REDIS_SECURITY_GROUP_ID: !GetAtt 'RedisSecurityGroup.GroupId'
-          REDIS_SUBNET_GROUP_NAME: {Ref: RedisSubnetGroup}
+        #Dynamodb access to read and write to multiple tables.
+        - PolicyName: !Join ['', [!Ref ServiceName, TaskRoleOpeningRange, DDBFull]]
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                Resource: {'Fn::Sub': 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:*'}
 
 Outputs:
   StackArn:
