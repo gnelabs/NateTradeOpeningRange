@@ -5,6 +5,7 @@ import logging
 from sys import stdout
 from collections import defaultdict
 from statistics import fmean
+from celery import app
 
 _LOGGER = logging.getLogger()
 _LOGGER.setLevel(logging.INFO)
@@ -67,6 +68,7 @@ class ProcessOpeningRanges(object):
         
         return compressed_data
 
+    @app.task(bind=True)
     def backtest_redux(self, opening_range_info:dict, compressed_agg_data:dict) -> dict:
         """
         Using opening range information and intraday price data, perform a backtest.
