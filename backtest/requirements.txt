@@ -1,7 +1,20 @@
 #Dependencies used in this library. 
 #pip install -r requirements.txt
+
+#Latest celery implimentation for task queueing, management.
 celery==5.4.0
+
+#Redis, message broker, interfacing with temporary data storage.
 redis==5.0.4
+
+#Numpy for statistics helpers.
 numpy==1.26.4
+
+#AWS SDK.
 boto3==1.34.104
+
+#Fast json serializer.
 ujson==5.10.0
+
+#Fast base64 serializer.
+pybase64==1.3.2
