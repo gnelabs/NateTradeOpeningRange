@@ -84,3 +84,5 @@ async def send_task(
         await r.lpush(queue, ujson.dumps(message))
     except Exception as e:
         _LOGGER.exception(f"action=send_task, status=fail, {e}")
+    finally:
+        await r.aclose()
