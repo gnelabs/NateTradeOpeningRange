@@ -99,3 +99,14 @@ def test():
                             '%'
                         )
 ```
+
+# Development
+## Building docker container.
+``` bash
+docker-compose build
+```
+
+## Running locally to test dockerfile. Stock configuration should start a celery worker instance.
+``` bash
+docker run -t -i --env-file ./env.list natetradeopeningrange-worker
+```

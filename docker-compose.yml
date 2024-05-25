@@ -1,0 +1,12 @@
+#Docker-compose version https://docs.docker.com/compose/compose-file/
+version: '3.8'
+
+#Dockerfiles to build.
+#Since the package structure is shared by multiple services, need to 
+#keep the Dockerfiles in the main package directory for everything 
+#to work.
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: backtest.Dockerfile
