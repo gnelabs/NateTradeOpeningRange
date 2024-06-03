@@ -110,3 +110,16 @@ docker-compose build
 ``` bash
 docker run -t -i --env-file ./env.list natetradeopeningrange-worker
 ```
+
+## Deploying to ECR
+``` bash
+aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 919768616786.dkr.ecr.us-east-2.amazonaws.com
+```
+
+``` bash
+docker tag natetradeopeningrange-worker:latest 919768616786.dkr.ecr.us-east-2.amazonaws.com/natetrade/opening_range:latest
+```
+
+``` bash
+docker push 919768616786.dkr.ecr.us-east-2.amazonaws.com/natetrade/opening_range:latest
+```
