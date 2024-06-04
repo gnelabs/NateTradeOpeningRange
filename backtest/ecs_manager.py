@@ -41,11 +41,6 @@ class TaskManager(object):
         self.container_override_names = {
             'arn:aws:ecs:us-east-2:919768616786:task-definition/NateTradeOpeningRangeOpeningRange': 'NateTradeOpeningRangeOpeningRange'
         }
-        
-        #Redis DB definitions
-        self.redis_definition = {
-            'redis': 'REDIS_ENDPOINT', #Main celery task worker DB, used only for celery.
-        }
 
         self.redis_manager_obj = Redis()
     
@@ -97,7 +92,7 @@ class TaskManager(object):
         cf_outputs = self.get_cloudformation_outputs()
 
         task_env_vars.append({
-            'name': self.redis_definition['redis'],
+            'name': 'REDIS_ENDPOINT'
             'value': redis_endpoint
         })
         
