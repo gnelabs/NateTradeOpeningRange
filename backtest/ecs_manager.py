@@ -92,7 +92,7 @@ class TaskManager(object):
         cf_outputs = self.get_cloudformation_outputs()
 
         task_env_vars.append({
-            'name': 'REDIS_ENDPOINT'
+            'name': 'REDIS_ENDPOINT',
             'value': redis_endpoint
         })
         

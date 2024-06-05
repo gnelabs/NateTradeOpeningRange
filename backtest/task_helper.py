@@ -30,7 +30,8 @@ async def send_task(
     This allows increased task injection performance by mimicking the message
     format.
     """
-    r = redis.asyncio.from_url("redis://localhost:6379", db=0, decode_responses=True)
+    redis_endpoint = os.environ['REDIS_ENDPOINT']
+    r = redis.asyncio.from_url("redis://{0}:6379".format(redis_endpoint), db=0, decode_responses=True)
 
     if not task_args:
         task_args = []
