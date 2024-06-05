@@ -134,17 +134,6 @@ Resources:
       ToPort: 22
       CidrIp: 74.133.12.50/32
 
-  #Tunnel access to virtual machines inside the VPC.
-  SSHAccessWorkIp:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: SSH access from my work IP to within the VPC.
-      GroupId: {Ref: RedisSecurityGroup}
-      IpProtocol: tcp
-      FromPort: 22
-      ToPort: 22
-      CidrIp: 104.133.24.97/32
-
   #Allow Redis to be accessed on the default port by anything inside the VPC.
   RedisIngress:
     Type: AWS::EC2::SecurityGroupIngress
@@ -155,6 +144,35 @@ Resources:
       FromPort: 6379
       ToPort: 6379
       SourceSecurityGroupId: !GetAtt 'RedisSecurityGroup.GroupId'
+
+  #Security group that acts as a placeholder for load balancers.
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Load Balancer Security Group"
+      VpcId: {Ref: VPC}
+
+  #Public redis access. No security concern since this load balancer only exists during testing.
+  OpenRedisAccessLoadBalancer:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Open and unrestricted Redis access for the load balancer.
+      GroupId: {Ref: LoadBalancerSecurityGroup}
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      CidrIp: 0.0.0.0/0
+
+  #Allow Redis to be accessed from the load balancer.
+  LoadBalancerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress to access Redis from the Load Balancer.
+      GroupId: {Ref: RedisSecurityGroup}
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      SourceSecurityGroupId: !GetAtt 'LoadBalancerSecurityGroup.GroupId'
 
   ################### ECS Cluster ###################
   #ECS cluster used to run processing machines for crunching numbers.
