@@ -298,3 +298,11 @@ Outputs:
     Description: "VPC subnet ID two."
     Value: {Ref: PublicSubnetTwo}
     Export: {Name: {'Fn::Sub': '${AWS::StackName}-VPCSubnetIDTwo'}}
+  LBSecurityGroupId:
+    Description: "Load balancer security group ID."
+    Value: !GetAtt 'LoadBalancerSecurityGroup.GroupId'
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-LoadBalancerSecurityGroupId'}}
+  VPCId:
+    Description: "VPC ID."
+    Value: {Ref: VPC}
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-VPCId'}}
