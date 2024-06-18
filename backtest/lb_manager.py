@@ -4,7 +4,7 @@ __author__ = "Nathan Ward"
 import logging
 from socket import gethostbyname
 from boto3 import client, resource
-from backtest.redis_manager import Redis
+from backtest.redis_manager import RedisManager
 from backtest.ecs_manager import TaskManager
 
 _LOGGER = logging.getLogger()
@@ -23,7 +23,7 @@ class LBManager(object):
         self.lb_client = client('elbv2', region_name='us-east-2')
         self.load_balancer_name = 'RedisPublicNLB'
 
-        self.redis_manager_obj = Redis()
+        self.redis_manager_obj = RedisManager()
         self.cf_output = TaskManager().get_cloudformation_outputs()
     
     def start_lb(self):

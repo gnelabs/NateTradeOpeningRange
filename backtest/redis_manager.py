@@ -15,7 +15,7 @@ class ElastiCacheError(Exception):
     pass
 
 
-class Redis(object):
+class RedisManager(object):
     def __init__(self):
         #Definition of redis database sizes.
         self.cluster_config = {

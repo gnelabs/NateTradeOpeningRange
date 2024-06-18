@@ -3,7 +3,7 @@ __author__ = "Nathan Ward"
 
 import logging
 from boto3 import client, resource
-from backtest.redis_manager import Redis
+from backtest.redis_manager import RedisManager
 
 _LOGGER = logging.getLogger()
 _LOGGER.setLevel(logging.INFO)
@@ -42,7 +42,7 @@ class TaskManager(object):
             'arn:aws:ecs:us-east-2:919768616786:task-definition/NateTradeOpeningRangeOpeningRange': 'NateTradeOpeningRangeOpeningRange'
         }
 
-        self.redis_manager_obj = Redis()
+        self.redis_manager_obj = RedisManager()
     
     def get_cloudformation_outputs(self) -> dict:
         """

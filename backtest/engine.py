@@ -2,9 +2,12 @@
 __author__ = "Nathan Ward"
 
 import logging
+from os import environ
 from sys import stdout
 from collections import defaultdict
 from statistics import fmean
+import redis
+import ujson
 from celery_worker import app
 
 _LOGGER = logging.getLogger()
@@ -57,8 +60,7 @@ def compress_time_series(agg_data_raw:dict) -> dict:
 @app.task(bind=True)
 def backtest_redux(
     self,
-    opening_range_info:dict,
-    compressed_agg_data:dict,
+    date:str,
     stop_distance = 0.25,
     stop_count_limit = 4,
     stop_cooloff_period = 30,
@@ -69,6 +71,14 @@ def backtest_redux(
 
     Redux: Re-wrote this logic to make it clearer.
     """
+    #Opening ranges staged data.
+    r_opening_ranges = redis.Redis(host=environ['REDIS_ENDPOINT'], port=6379, db=1, decode_responses=True)
+    opening_range_info = ujson.loads(r_opening_ranges.get(date))
+
+    #Time series data.
+    r_time_series_agg = redis.Redis(host=environ['REDIS_ENDPOINT'], port=6379, db=2, decode_responses=True)
+    compressed_agg_data = ujson.loads(r_time_series_agg.get(date))
+
     #Per-trade information. Things like holding period, p&l, cost basis.
     trade_stats = defaultdict(dict)
 
