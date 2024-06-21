@@ -14,7 +14,8 @@ app = Celery(
     backend='redis://{0}:6379/0'.format(environ['REDIS_ENDPOINT']),
     #Modules to pre-import so the worker can be ready.
     include=[
-        'backtest.engine'
+        'backtest.engine',
+        'startup'
     ]
 )
 
