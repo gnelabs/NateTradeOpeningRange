@@ -29,4 +29,4 @@ WORKDIR /nt
 RUN pip3 install -r backtest/requirements.txt --break-system-packages
 
 #Start the worker.
-CMD ~/.local/bin/celery -A celery_worker worker -l WARNING -c 20 -n worker1@%n -Q worker_main --time-limit 10
+CMD ~/.local/bin/celery -A celery_worker worker -l WARNING -c 20 -n worker1@%n -Q worker_main --time-limit 60
