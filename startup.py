@@ -18,6 +18,7 @@ def create_processing_jobs(
     self,
     range_start: float,
     range_end: float,
+    range_increment: float,
     range_id: str,
     fixed_settings: dict
 ) -> None:
@@ -26,7 +27,7 @@ def create_processing_jobs(
 
     Directly calls the backtest engine.
     """
-    for item in frange(range_start, range_end, 0.01):
+    for item in frange(range_start, range_end, range_increment):
         fixed_settings[range_id] = round(item, 2)
         res = app.send_task(
             'backtest.engine.backtest_redux',
