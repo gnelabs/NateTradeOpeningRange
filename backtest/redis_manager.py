@@ -19,7 +19,7 @@ class RedisManager(object):
     def __init__(self):
         #Definition of redis database sizes.
         self.cluster_config = {
-            'backteststorage': 'cache.t4g.medium'
+            'backteststorage': 'cache.r6g.large'
         }
 
         #Cloudformation stack name.
