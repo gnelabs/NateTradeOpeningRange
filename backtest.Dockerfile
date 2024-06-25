@@ -5,6 +5,8 @@ FROM ubuntu:24.04
 RUN apt-get update
 RUN apt-get -y install software-properties-common
 RUN apt-get -y install pkg-config
+RUN apt-get -y install default-libmysqlclient-dev
+RUN apt-get -y install 
 RUN add-apt-repository ppa:deadsnakes/ppa -y
 RUN apt-get update
 
