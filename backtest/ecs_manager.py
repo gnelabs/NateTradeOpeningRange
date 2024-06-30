@@ -2,6 +2,7 @@
 __author__ = "Nathan Ward"
 
 import logging
+from os import environ
 from boto3 import client, resource
 from backtest.redis_manager import RedisManager
 
@@ -85,16 +86,39 @@ class TaskManager(object):
     def start_task(self, desired_task_count: int, start_reason: str) -> None:
         """Start a task."""
         #Populate redis endpoints as environment variables.
-        task_env_vars = []
+        task_env_vars = [
+            {
+                'name': 'DB_ENDPOINT',
+                'value': environ['DB_ENDPOINT']
+            },
+            {
+                'name': 'DB_USERNAME',
+                'value': environ['DB_USERNAME']
+            },
+            {
+                'name': 'DB_PASSWORD',
+                'value': environ['DB_PASSWORD']
+            },
+            {
+                'name': 'DB_NAME',
+                'value': environ['DB_NAME']
+            },
+            {
+                'name': 'DB_TABLE',
+                'value': environ['DB_TABLE']
+            }
+        ]
 
         redis_endpoint = self.redis_manager_obj.get_backtest_redis_endpoint()
 
         cf_outputs = self.get_cloudformation_outputs()
 
-        task_env_vars.append({
-            'name': 'REDIS_ENDPOINT',
-            'value': redis_endpoint
-        })
+        task_env_vars.append(
+            {
+                'name': 'REDIS_ENDPOINT',
+                'value': redis_endpoint
+            }
+        )
         
         try:
             response = self.ecs_client.run_task(

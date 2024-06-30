@@ -63,20 +63,27 @@ def lifecycle_result_data(self) -> None:
     celery_task_ids_to_delete = []
     results = {}
 
+    #Limit batch size for DB performance and to prevent task from timing out.
+    redis_download_batch_size = 5000
+    db_upload_batch_size = 1000
+    count = 0
+
     #Only dig up completed task ids, using non-blocking search.
     for key_task_id in r.scan_iter('celery-task-meta-*'):
-        matching_keys.append(key_task_id)
+        if count < redis_download_batch_size:
+            matching_keys.append(key_task_id)
+            count += 1
+        else:
+            break
 
     #Bulk get keys and filter.
     for key_task_id in r.mget(matching_keys):
         data = ujson.loads(key_task_id)
         if data['status'] == 'SUCCESS':
-            if 'net_profit' in data['result']:
-                results[data['task_id']] = data['result']
-                celery_task_ids_to_delete.append(''.join(['celery-task-meta-', data['task_id']]))
-
-    #Limit batch size for DB performance.
-    batch_size = 5000
+            if data['result'] is not None:
+                if 'net_profit' in data['result']:
+                    results[data['task_id']] = data['result']
+                    celery_task_ids_to_delete.append(''.join(['celery-task-meta-', data['task_id']]))
 
     sql_converted_data = []
 
@@ -105,7 +112,7 @@ def lifecycle_result_data(self) -> None:
             database = sql_dbname
         )
         
-        for batch_rows in batch(sql_converted_data, batch_size):
+        for batch_rows in batch(sql_converted_data, db_upload_batch_size):
             statement = StringIO()
             #Ignore errors, just write.
             statement.write('INSERT IGNORE INTO {0} ('.format(sql_tablename))
