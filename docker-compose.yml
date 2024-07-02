@@ -5,6 +5,7 @@ version: '3.8'
 #Since the package structure is shared by multiple services, need to 
 #keep the Dockerfiles in the main package directory for everything 
 #to work.
+#Single container instance, for use in production.
 services:
   worker:
     build:
