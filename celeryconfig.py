@@ -5,6 +5,7 @@ __author__ = "Nathan Ward"
 Celery configuration.
 """
 
+import socket
 import ujson
 from kombu.serialization import kombu_register
 

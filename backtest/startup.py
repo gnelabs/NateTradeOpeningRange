@@ -6,34 +6,46 @@ Functionality to start the backtesting system.
 """
 
 import logging
+from os import environ
+import redis
 from frange import frange
-from celery_worker import app
+from backtest.task_helper import send_task
 
 _LOGGER = logging.getLogger()
 _LOGGER.setLevel(logging.INFO)
 
 
-@app.task(bind=True)
-def create_processing_jobs(
-    self,
-    range_start: float,
-    range_end: float,
-    range_increment: float,
-    range_id: str,
-    fixed_settings: dict
-) -> None:
-    """
-    Batch create processing tasks based on a single range to limit the batch size.
+def seed_backtest_requests():
+    task_args = []
 
-    Directly calls the backtest engine.
-    """
-    for item in frange(range_start, range_end, range_increment):
-        fixed_settings[range_id] = round(item, 2)
-        res = app.send_task(
-            'backtest.engine.backtest_redux',
-            kwargs = fixed_settings,
-            queue='worker_main'
-        )
+    for limit in frange(1, 20):
+        for stopiteration in frange(1, 4):
+            for cooloff in frange(30, 300, 30):
+                for stop_distance in frange(0.1, 2, 0.1):
+                    task_args.append([limit, stopiteration, cooloff, stop_distance])
 
-    return
+    print('Sending {0} backtest tasks to be processed.'.format(len(task_args)))
 
+    count = 0
+    r = redis.Redis(host=environ['REDIS_ENDPOINT'], port=6379, db=0, decode_responses=True)
+
+    #https://redis-py.readthedocs.io/en/stable/advanced_features.html#default-pipelines
+    with r.pipeline() as pipe:
+        for item in task_args:
+            count += 1
+            message_to_send = send_task(
+                queue = 'worker_main',
+                task_name = 'backtest.engine.backtest_redux',
+                task_kwargs = {
+                    'stop_distance': item[3],
+                    'stop_count_limit': item[1],
+                    'stop_cooloff_period': item[2],
+                    'limit_distance': item[0],
+                }
+            )
+            pipe.lpush('worker_main', message_to_send)
+
+            #Limit pipeline batches to 1000 to reduce risk of deadlock.
+            if count % 1000 == 0:
+                print('sent {0} tasks to redis'.format(count))
+                pipe.execute()

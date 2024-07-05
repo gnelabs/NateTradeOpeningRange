@@ -64,7 +64,7 @@ def lifecycle_result_data(self) -> None:
     results = {}
 
     #Limit batch size for DB performance and to prevent task from timing out.
-    redis_download_batch_size = 5000
+    redis_download_batch_size = 20000
     db_upload_batch_size = 1000
     count = 0
 
@@ -80,10 +80,10 @@ def lifecycle_result_data(self) -> None:
     for key_task_id in r.mget(matching_keys):
         data = ujson.loads(key_task_id)
         if data['status'] == 'SUCCESS':
+            celery_task_ids_to_delete.append(''.join(['celery-task-meta-', data['task_id']]))
             if data['result'] is not None:
-                if 'net_profit' in data['result']:
+                if 'backtest_profit' in data['result']:
                     results[data['task_id']] = data['result']
-                    celery_task_ids_to_delete.append(''.join(['celery-task-meta-', data['task_id']]))
 
     sql_converted_data = []
 
@@ -95,11 +95,14 @@ def lifecycle_result_data(self) -> None:
         #JSON data type needs to be in single quotes.
         sql_converted_data.append(
             {
-                'trade_id': '"{0}"'.format(result_key),
-                'stops_triggered': result_data['stops_triggered'],
-                'trades_triggered': result_data['trades_triggered'],
-                'net_profit': result_data['net_profit'],
+                'backtest_profit': result_data['backtest_profit'],
                 'average_holding_period': result_data['average_holding_period'],
+                'win_rate_percent': result_data['win_rate_percent'],
+                'stop_distance': result_data['stop_distance'],
+                'stop_count_limit': result_data['stop_count_limit'],
+                'stop_cooloff_period': result_data['stop_cooloff_period'],
+                'limit_distance': result_data['limit_distance'],
+                'backtest_id': '"{0}"'.format(result_data['backtest_id']),
                 'trade_stats': "'{0}'".format(ujson.dumps(result_data['trade_stats']))
             }
         )
@@ -144,11 +147,17 @@ def lifecycle_result_data(self) -> None:
     if celery_task_ids_to_delete:
         r.delete(*celery_task_ids_to_delete)
 
+    tasks_processed_count = r.dbsize()
+    tasks_remaining_count = r.llen('worker_main')
     end_time = time()
     execution_time = round((end_time - start_time), 3)
 
     return {
         'status': 'SUCCESS',
-        'message': 'Reaper successfully lifecycled {0} rows to MySQL.'.format(len(results)),
+        'message': 'Reaper successfully lifecycled {count_moved} rows to MySQL. {count_rem} completed tasks still need to be lifecycled. {count_queued} tasks are queued but have not been executed yet.'.format(
+            count_moved = len(results),
+            count_rem = tasks_processed_count,
+            count_queued = tasks_remaining_count
+        ),
         'duration': execution_time
     }

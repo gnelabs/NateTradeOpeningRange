@@ -17,7 +17,6 @@ app = Celery(
     #Modules to pre-import so the worker can be ready.
     include=[
         'backtest.engine',
-        'backtest.startup',
         'backtest.reaper'
     ]
 )

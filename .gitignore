@@ -7,6 +7,7 @@ env.list
 #Random notes.
 notes.txt
 notes.py
+notes2.py
 example_queries.txt
 
 #Local cache files.

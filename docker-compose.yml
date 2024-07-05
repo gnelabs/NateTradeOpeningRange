@@ -11,3 +11,5 @@ services:
     build:
       context: .
       dockerfile: backtest.Dockerfile
+    sysctls:
+      net.core.somaxconn: 65535

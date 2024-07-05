@@ -5,21 +5,15 @@ __author__ = "Nathan Ward"
 Helpers to access low level implimentation of celery send task.
 """
 
-import logging
 import os
 import socket
 from uuid import uuid4
 from typing import Dict, List, Optional
 import ujson
 from pybase64 import b64encode
-import redis
 
 
-_LOGGER = logging.getLogger()
-_LOGGER.setLevel(logging.INFO)
-
-
-async def send_task(
+def send_task(
     queue: str,
     task_name: str,
     task_args: Optional[List] = None,
@@ -30,9 +24,6 @@ async def send_task(
     This allows increased task injection performance by mimicking the message
     format.
     """
-    redis_endpoint = os.environ['REDIS_ENDPOINT']
-    r = redis.asyncio.from_url("redis://{0}:6379".format(redis_endpoint), db=0, decode_responses=True)
-
     if not task_args:
         task_args = []
     
@@ -81,7 +72,4 @@ async def send_task(
         },
     }
 
-    try:
-        await r.lpush(queue, ujson.dumps(message))
-    except Exception as e:
-        _LOGGER.exception(f"action=send_task, status=fail, {e}")
+    return ujson.dumps(message)
