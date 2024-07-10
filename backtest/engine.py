@@ -257,7 +257,15 @@ def backtest_redux(
         additional_stats = {}
         additional_stats['st'] = stop_triggered_count
         additional_stats['tt'] = trade_initiated_count
-        additional_stats['ahp'] = fmean(k['hp'] for k in trade_stats.values())
+
+        holding_period_data = []
+        for v in trade_stats.values():
+            try:
+                holding_period_data.append(v['hp'])
+            except KeyError:
+                break
+
+        additional_stats['ahp'] = fmean(holding_period_data)
         additional_stats['snp'] = sum(k['p'] for k in trade_stats.values())
 
         backtest_stats[date] = trade_stats | additional_stats
