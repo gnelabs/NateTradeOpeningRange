@@ -21,6 +21,7 @@ environ['DB_TABLE'] = 'results'
 ```
 
 ## Alternatively, you can create env.list file for local testing with docker containers.
+
 ``` bash
 REDIS_ENDPOINT=172.17.0.2
 DB_ENDPOINT=172.17.0.3
@@ -91,6 +92,12 @@ cleaned_data = compress_time_series(agg_data)
 del agg_data
 ```
 
+Example output during gather information of a security:
+``` bash
+>>> opening_ranges_all_securities = collect_or_object.get_opening_range_data(collect_or_object.epoch_date_ranges())
+Returned 1267633 rows of data in 18.55 seconds.
+```
+
 # Opening Range Breakout (ORB) strategy backtesting.
 ## Stage opening range data in Redis to be consumed by backtest workers.
 ``` python
@@ -106,10 +113,90 @@ stage_obj.stage_price_data(cleaned_data)
 
 ## Backtesting
 backtest.startup can be modified to change test parameters.
+Running 9747 backtests took ~22 minutes with two local workers.
 ``` python
 from backtest.startup import seed_backtest_requests
 seed_backtest_requests()
 ```
+
+This will generate a result like:
+``` bash
+>>> seed_backtest_requests()
+Sending 9747 backtest tasks to be processed.
+sent 1000 tasks to redis
+sent 2000 tasks to redis
+sent 3000 tasks to redis
+sent 4000 tasks to redis
+sent 5000 tasks to redis
+sent 6000 tasks to redis
+sent 7000 tasks to redis
+sent 8000 tasks to redis
+sent 9000 tasks to redis
+```
+
+## Create results table in MySQL.
+This creates a place for lifecycled data to be persisted.
+``` sql
+CREATE TABLE `results` (
+    `backtest_id` VARCHAR(5) NOT NULL DEFAULT '0' COLLATE 'utf8mb4_general_ci',
+    `backtest_profit` FLOAT NOT NULL DEFAULT '0',
+    `average_holding_period` FLOAT NOT NULL DEFAULT '0',
+    `win_rate_percent` INT(3) NOT NULL DEFAULT '0',
+    `stop_distance` FLOAT NOT NULL DEFAULT '0',
+    `stop_count_limit` INT(11) NOT NULL DEFAULT '0',
+    `stop_cooloff_period` INT(11) NOT NULL DEFAULT '0',
+    `limit_distance` FLOAT NOT NULL DEFAULT '0',
+    `trade_stats` JSON,
+    PRIMARY KEY (backtest_id),
+    INDEX `ProfitIndex` (`backtest_profit`) USING BTREE
+)
+COMMENT='Stores backtest results for trades.'
+COLLATE='utf8mb4_general_ci'
+ENGINE=InnoDB
+;
+```
+
+## Monitoring computation progress and lifecycling data to MySQL.
+``` python
+from time import sleep
+from backtest.reaper import lifecycle_result_data
+
+for i in range(1,300):
+    lifecycle_result_data()
+    sleep(20)
+```
+
+Example output during monitoring/reaping:
+``` bash
+>>> for i in range(1,300):
+...     lifecycle_result_data()
+...     sleep(20)
+...
+{'status': 'SUCCESS', 'message': 'Reaper successfully lifecycled 1114 rows to MySQL. 33 completed tasks still need to be lifecycled. 7820 tasks are queued but have not been executed yet.', 'duration': 3.838}
+{'status': 'SUCCESS', 'message': 'Reaper successfully lifecycled 150 rows to MySQL. 10 completed tasks still need to be lifecycled. 7693 tasks are queued but have not been executed yet.', 'duration': 0.503}
+{'status': 'SUCCESS', 'message': 'Reaper successfully lifecycled 123 rows to MySQL. 11 completed tasks still need to be lifecycled. 7569 tasks are queued but have not been executed yet.', 'duration': 0.522}
+```
+
+# Analysis after backtesting
+## Viewing results in MySQL.
+``` sql
+SELECT
+  ((stop_distance / backtest_profit) * stop_count_limit) AS risk_adjusted_win_rate,
+  backtest_id,
+  backtest_profit,
+  average_holding_period,
+  win_rate_percent,
+  stop_distance,
+  stop_count_limit,
+  stop_cooloff_period,
+  limit_distance
+FROM results.results
+ORDER BY risk_adjusted_win_rate
+DESC
+```
+
+This should give you results that look like this:
+![Example usage](https://github.com/gnelabs/NateTradeOpeningRange/blob/main/example_analysis.jpg?raw=true)
 
 # Development
 ## Building docker container.
@@ -117,9 +204,19 @@ seed_backtest_requests()
 docker-compose build
 ```
 
-## Running locally to test dockerfile. Stock configuration should start a celery worker instance.
+## Local testing, run a worker container.
 ``` bash
 docker run -t -i --env-file ./env.list natetradeopeningrange-worker
+```
+
+## Local testing, run a local instance of Redis server.
+``` bash
+docker run -e REDIS_ARGS="--maxclients 65000 --appendonly no --save """ -d --name redis-server-no-persistence --ip 172.17.0.2 -p 6379:6379 redis/redis-stack-server:latest
+```
+
+## Local testing, run a local instance of MySQL.
+``` bash
+docker run --name mysql-local --ip 172.17.0.3 -p 3306:3306 -e MYSQL_ROOT_PASSWORD=34vFE3PxFJKCzTPZ -d mysql:latest
 ```
 
 ## Deploying to ECR
