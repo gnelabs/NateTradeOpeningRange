@@ -1,8 +1,22 @@
 # NateTradeOpeningRange
 ## Description
 Backtesting engine built for large-scale parallel backtests. Can run either in the cloud in AWS, or locally in docker containers.
+Can scale to hundreds of workers.
 Uses high-resolution intraday price data from the NateTrade data warehouse.
 Initial strategy is an ORB (opening-range breakout) trading strategy, with several adjustable parameters.
+
+## Architecture
+Redis is used as a general cache between the workers. It runs three tables:
+
+db = 0 For worker task management through celery, and to maintain task consistency. 
+db = 1 For opening_ranges_organized data for the specified ticker. 
+db = 2 For cleaned_data staging.
+
+The workers process any available tasks, and return test result data back to Redis as the celery task result.
+The reaper is a seperate task that runs on the same workers, that lifecycles data out of Redis and into MySQL.
+This is done to preserve available memory, and to make results easier to analyze.
+
+![Example usage](https://github.com/gnelabs/NateTradeOpeningRange/blob/main/or_arch.jpg?raw=true)
 
 # Backtesting
 ## Staging database credentials as environmental variables.
@@ -105,17 +119,13 @@ Returned 1267633 rows of data in 18.55 seconds.
 # Opening Range Breakout (ORB) strategy backtesting.
 ## Stage opening range data in Redis to be consumed by backtest workers.
 ``` python
-#db = 0 for celery tasks and results
-#db = 1 for opening_ranges_organized data for the specified ticker
-#db = 2 for cleaned_data
-
 from backtest.caching import StageRedis
 stage_obj = StageRedis(ticker_to_investigate)
 stage_obj.stage_opening_ranges(opening_ranges_organized)
 stage_obj.stage_price_data(cleaned_data)
 ```
 
-## Backtesting
+## Running backtests.
 backtest.startup can be modified to change test parameters.
 Running 9747 backtests took ~22 minutes with two local workers.
 ``` python
