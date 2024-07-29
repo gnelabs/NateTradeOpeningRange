@@ -6,32 +6,47 @@ Backtesting engine & trading system for an intraday trend following strategy bas
 ## Staging database credentials as environmental variables.
 ``` python
 from os import environ
+#Access to natetrade data warehouse.
 environ['SQL_USERNAME'] = 'your_username'
 environ['SQL_PASSWORD'] = 'your_password'
 environ['SQL_HOSTNAME'] = 'sql.natetrade.com'
+
+#Redis and Mysql endpoints if in the cloud.
+environ['REDIS_ENDPOINT'] = 'localhost'
+environ['DB_ENDPOINT'] = 'localhost'
+environ['DB_USERNAME'] = 'root'
+environ['DB_PASSWORD'] = '34vFE3PxFJKCzTPZ'
+environ['DB_NAME'] = 'results'
+environ['DB_TABLE'] = 'results'
 ```
 
-## Staging modules and collecting data.
+## Alternatively, you can create env.list file for local testing with docker containers.
+``` bash
+REDIS_ENDPOINT=172.17.0.2
+DB_ENDPOINT=172.17.0.3
+DB_USERNAME=root
+DB_PASSWORD=34vFE3PxFJKCzTPZ
+DB_NAME=results
+DB_TABLE=results
+```
+
+## Starting test infrastructure in the cloud.
 ``` python
-from backtest.data_collection import CollectOpeningRanges
-from backtest.caching import CachedData
-from backtest.engine import ProcessOpeningRanges
+#Create redis database to cache results.
+from backtest.redis_manager import RedisManager
+meow = RedisManager()
+meow.start_redis()
 
-collect_or_object = CollectOpeningRanges()
-backtester = ProcessOpeningRanges()
+#Create load balancer to make redis publicly accessible.
+from backtest.lb_manager import LBManager
+caww = LBManager()
+caww.start_lb()
+caww.create_target_group()
 
-collect_or_object.opening_range_duration = 30
-opening_ranges_all_securities = collect_or_object.get_opening_range_data(collect_or_object.epoch_date_ranges())
-opening_ranges_organized = collect_or_object.organize_opening_range_data(
-    range_data = opening_ranges_all_securities,
-    range_duration_to_test = 30
-)
-
-ticker_to_investigate = 'SPY'
-cache_obj = CachedData(ticker_to_investigate)
-
-#Load data from a cached file if present.
-agg_data = cache_obj.load()
+#Create fleet of fargate virtual machines to run backtests.
+from backtest.ecs_manager import TaskManager
+woof = TaskManager()
+woof.start_task(desired_task_count = 10, start_reason = 'testing17')
 ```
 
 ## Caching, download and save data for a ticker.
@@ -50,54 +65,50 @@ for k, v in opening_ranges_organized[ticker_to_investigate].items():
 cache_obj.save(agg_data)
 ```
 
-## Backtest example, test a combination of stop iterations, cooloff periods, stop ranges and limit ranges.
+## Using cached data for a ticker to collect opening range information.
 ``` python
-cleaned_data = backtester.compress_time_series(agg_data)
+from backtest.data_collection import CollectOpeningRanges
+from backtest.caching import CachedData
+from backtest.engine import compress_time_series
 
-def test():
-    for stopiteration in range(1, 4):
-        for cooloff in range(10, 300, 120):
-            for stop in range(50, 250, 25):
-                for limit in range(1, 10):
-                    profit_tracker = {}
-                    for k_date, v_cleaned_data in cleaned_data.items():
-                        #stop distance, in basis points relative to the open price
-                        backtester.stop_distance = (opening_ranges_organized[ticker_to_investigate][k_date]['open_price'] * 0.0001) * stop
-                        #limit distance, in percentage terms relative to the open price
-                        backtester.limit_distance = (opening_ranges_organized[ticker_to_investigate][k_date]['open_price'] * 0.01) * limit
-                        #cooloff period
-                        backtester.stop_cooloff_period = cooloff
-                        #number of Stops
-                        backtester.stop_count_limit = stopiteration
-                        result = backtester.backtest_redux(
-                            opening_range_info = opening_ranges_organized[ticker_to_investigate][k_date],
-                            compressed_agg_data = v_cleaned_data
-                        )
-                        profit_tracker[k_date] = result['net_profit']
-                    win_rate = []
-                    for v in profit_tracker.values():
-                        if v > 0:
-                            win_rate.append(True)
-                        else:
-                            win_rate.append(False)
-                    if sum(profit_tracker.values()) > 0:
-                        print(
-                            'Stops: ',
-                            stopiteration,
-                            ' Cooloff: ',
-                            cooloff,
-                            ' Stop dis: ',
-                            stop,
-                            'bp',
-                            ' Limit dis: ',
-                            limit,
-                            '%',
-                            ' Net profit: ',
-                            round(sum(profit_tracker.values()), 2),
-                            ' Win rate: ',
-                            round((win_rate.count(True) / len(win_rate) * 100)),
-                            '%'
-                        )
+collect_or_object = CollectOpeningRanges()
+collect_or_object.opening_range_duration = 300
+
+opening_ranges_all_securities = collect_or_object.get_opening_range_data(collect_or_object.epoch_date_ranges())
+opening_ranges_organized = collect_or_object.organize_opening_range_data(
+    range_data = opening_ranges_all_securities,
+    range_duration_to_test = 30
+)
+del opening_ranges_all_securities
+
+ticker_to_investigate = 'SPY'
+cache_obj = CachedData(ticker_to_investigate)
+
+#Load data from a cached file if present.
+agg_data = cache_obj.load()
+
+cleaned_data = compress_time_series(agg_data)
+del agg_data
+```
+
+# Opening Range Breakout (ORB) strategy backtesting.
+## Stage opening range data in Redis to be consumed by backtest workers.
+``` python
+#db = 0 for celery tasks and results
+#db = 1 for opening_ranges_organized data for the specified ticker
+#db = 2 for cleaned_data
+
+from backtest.caching import StageRedis
+stage_obj = StageRedis(ticker_to_investigate)
+stage_obj.stage_opening_ranges(opening_ranges_organized)
+stage_obj.stage_price_data(cleaned_data)
+```
+
+## Backtesting
+backtest.startup can be modified to change test parameters.
+``` python
+from backtest.startup import seed_backtest_requests
+seed_backtest_requests()
 ```
 
 # Development
