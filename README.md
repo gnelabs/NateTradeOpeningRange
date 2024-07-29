@@ -1,6 +1,8 @@
 # NateTradeOpeningRange
 ## Description
-Backtesting engine & trading system for an intraday trend following strategy based on the opening range.
+Backtesting engine built for large-scale parallel backtests. Can run either in the cloud in AWS, or locally in docker containers.
+Uses high-resolution intraday price data from the NateTrade data warehouse.
+Initial strategy is an ORB (opening-range breakout) trading strategy, with several adjustable parameters.
 
 # Backtesting
 ## Staging database credentials as environmental variables.
