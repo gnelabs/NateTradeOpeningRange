@@ -20,8 +20,8 @@ environ['DB_NAME'] = 'results'
 environ['DB_TABLE'] = 'results'
 ```
 
-## Alternatively, you can create env.list file for local testing with docker containers.
-
+## Staging credentials for local testing.
+Create an env.list file in the main directory to specify settings for local docker testing.
 ``` bash
 REDIS_ENDPOINT=172.17.0.2
 DB_ENDPOINT=172.17.0.3
@@ -32,6 +32,7 @@ DB_TABLE=results
 ```
 
 ## Starting test infrastructure in the cloud.
+Access credentials are passed to the cloud from the environemt variables specified earlier.
 ``` python
 #Create redis database to cache results.
 from backtest.redis_manager import RedisManager
@@ -51,6 +52,7 @@ woof.start_task(desired_task_count = 10, start_reason = 'testing17')
 ```
 
 ## Caching, download and save data for a ticker.
+This will collect a years worth of high-resolution intraday prices.
 Note, there must be a cached_data folder present in the main code directory. Some securities can take up to 20 minutes to download.
 ``` python
 ticker_to_investigate = 'SPY'
