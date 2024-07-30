@@ -8,7 +8,7 @@ Backtesting engine built for large-scale parallel backtests. Includes an opening
 * High performance backtesting engine with simple comparator logic that takes advantage of L3 cache on the CPU.
 * Can be run in native Python, in Docker containers, or in the AWS cloud.
 * Includes several helper modules to create and delete pre-configured AWS cloud resources that are cost-optimized.
-* Can scale to hundreds of parallel workers, and can run millions of backtests.
+* Can scale to hundreds of parallel workers and millions of backtests.
 * Includes the ability to lifecycle backtest result data out of Redis into persistable MySQL to keep costs low.
 * Initial ORB trading strategy includes several tunable parameters to control risk.
 * Includes basic plotting module to visualize test results.
@@ -23,6 +23,11 @@ Redis is used as a general cache between the workers. It runs three tables:
 The workers process any available tasks, and return test result data back to Redis as the celery task result.
 The reaper is a seperate task that runs on the same workers, that lifecycles data out of Redis and into MySQL.
 This is done to preserve available memory, and to make results easier to analyze.
+
+There are two queues stored in Redis to control job demand, both are strongly consistent:
+
+* worker_main - General-purpose low priority work, i.e. backtests. 
+* worker_priority - High priority FIFO queue, i.e. data lifecycling, garbage collection, monitoring.
 
 ![Example usage](https://github.com/gnelabs/NateTradeOpeningRange/blob/main/or_arch.jpg?raw=true)
 
@@ -57,22 +62,50 @@ DB_TABLE=results
 
 ## Starting test infrastructure in the cloud.
 Access credentials are passed to the cloud from the environemt variables specified earlier.
+
+Redis is run in an insecure mode, do not store sensitive data in it.
 ``` python
-#Create redis database to cache results.
+#Create redis database to cache results. Takes about five minutes to spin up.
 from backtest.redis_manager import RedisManager
 meow = RedisManager()
 meow.start_redis()
 
-#Create load balancer to make redis publicly accessible.
+#Create load balancer to make redis publicly accessible. Takes about two minutes to spin up.
 from backtest.lb_manager import LBManager
 caww = LBManager()
 caww.start_lb()
-caww.create_target_group()
+#Will output the ARNs for the resources created.
+lb_resources = caww.create_target_group()
 
-#Create fleet of fargate virtual machines to run backtests.
+#Create fleet of fargate virtual machines to run backtests. Takes about a minute to spin up, will show up in the ECS tasks dashboard.
 from backtest.ecs_manager import TaskManager
 woof = TaskManager()
+#Limited by ECS service quotas.
 woof.start_task(desired_task_count = 10, start_reason = 'testing17')
+```
+
+## Stopping cloud test infrastructure.
+
+``` python
+#Stopping ECS virtual machine(s)
+from backtest.ecs_manager import TaskManager
+woof = TaskManager()
+for task_arn in woof.list_running_tasks():
+    woof.stop_task(task_arn, 'demo')
+
+#Stopping load balancer after starting it
+from backtest.lb_manager import LBManager
+caww = LBManager()
+caww.stop_lb(
+    lb_arn = lb_resources['load_balancer_arn'],
+    tg_arn = lb_resources['target_group_arn'],
+    ls_arn = lb_resources['listener_arn']
+)
+
+#Delete redis database
+from backtest.redis_manager import RedisManager
+meow = RedisManager()
+meow.stop_redis()
 ```
 
 ## Caching, download and save data for a ticker.
@@ -179,6 +212,9 @@ ENGINE=InnoDB
 ```
 
 ## Monitoring computation progress and lifecycling data to MySQL.
+
+Since both Redis and MySQL are directly accessible
+
 ``` python
 from time import sleep
 from backtest.reaper import lifecycle_result_data
@@ -237,6 +273,9 @@ docker-compose build
 ```
 
 ## Local testing, run a worker container.
+
+It is recommended to have 32gb of memory on your development machine in order to run a full ecosystem of containers.
+
 ``` bash
 docker run -t -i --env-file ./env.list natetradeopeningrange-worker
 ```
@@ -251,7 +290,24 @@ docker run -e REDIS_ARGS="--maxclients 65000 --appendonly no --save """ -d --nam
 docker run --name mysql-local --ip 172.17.0.3 -p 3306:3306 -e MYSQL_ROOT_PASSWORD=34vFE3PxFJKCzTPZ -d mysql:latest
 ```
 
-## Deploying to ECR
+# Deploying to AWS Cloud
+## Deploying Cloudformation template and VPC skeleton
+
+The AWS CLI must be installed and configured with access credentials to your account. SAM CLI must be installed.
+
+``` bash
+# Resolve dependencies and create a .aws-sam/build/ directory.
+$ sam build --use-container
+```
+
+Deploy to cloudformation. Use --guided for the initial install to setup your S3 bucket and what not.
+
+``` bash
+# Deploy the application. Use the guided method so you can fill in information about your S3 bucket and region.
+$ sam deploy --guided
+```
+
+## Deploying Docker containers to ECR
 ``` bash
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 919768616786.dkr.ecr.us-east-2.amazonaws.com
 ```

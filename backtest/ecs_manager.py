@@ -124,6 +124,8 @@ class TaskManager(object):
             response = self.ecs_client.run_task(
                 cluster = self.cluster_name,
                 count = desired_task_count,
+                #Adjust this ratio to control for spot instance consumption.
+                #Baseline, 90% spot instance utilization relative to on-demand.
                 capacityProviderStrategy = [
                     {
                         'capacityProvider': 'FARGATE',
