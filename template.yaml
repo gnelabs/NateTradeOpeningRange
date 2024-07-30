@@ -123,17 +123,6 @@ Resources:
       GroupDescription: "Redis Security Group"
       VpcId: {Ref: VPC}
 
-  #Tunnel access to virtual machines inside the VPC.
-  SSHAccessHomeIp:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: SSH access from my home IP to within the VPC.
-      GroupId: {Ref: RedisSecurityGroup}
-      IpProtocol: tcp
-      FromPort: 22
-      ToPort: 22
-      CidrIp: 74.133.12.50/32
-
   #Allow Redis to be accessed on the default port by anything inside the VPC.
   RedisIngress:
     Type: AWS::EC2::SecurityGroupIngress
