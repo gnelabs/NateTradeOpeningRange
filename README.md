@@ -1,16 +1,24 @@
 # NateTradeOpeningRange
 ## Description
-Backtesting engine built for large-scale parallel backtests. Can run either in the cloud in AWS, or locally in docker containers.
-Can scale to hundreds of workers.
-Uses high-resolution intraday price data from the NateTrade data warehouse.
-Initial strategy is an ORB (opening-range breakout) trading strategy, with several adjustable parameters.
+Backtesting engine built for large-scale parallel backtests. Includes an opening-range breakout trend following strategy.
+
+## Features
+
+* Uses high-resolution intraday price data from the NateTrade data warehouse.
+* High performance backtesting engine with simple comparator logic that takes advantage of L3 cache on the CPU.
+* Can be run in native Python, in Docker containers, or in the AWS cloud.
+* Includes several helper modules to create and delete pre-configured AWS cloud resources that are cost-optimized.
+* Can scale to hundreds of parallel workers, and can run millions of backtests.
+* Includes the ability to lifecycle backtest result data out of Redis into persistable MySQL to keep costs low.
+* Initial ORB trading strategy includes several tunable parameters to control risk.
+* Includes basic plotting module to visualize test results.
 
 ## Architecture
 Redis is used as a general cache between the workers. It runs three tables:
 
-1. db = 0 For worker task management through celery, and to maintain task consistency. 
-2. db = 1 For opening_ranges_organized data for the specified ticker. 
-3. db = 2 For cleaned_data staging.
+* db = 0 For worker task management through celery, and to maintain task consistency. 
+* db = 1 For opening_ranges_organized data for the specified ticker. 
+* db = 2 For cleaned_data staging.
 
 The workers process any available tasks, and return test result data back to Redis as the celery task result.
 The reaper is a seperate task that runs on the same workers, that lifecycles data out of Redis and into MySQL.
@@ -213,7 +221,7 @@ This should give you results that look like this:
 ![Example usage](https://github.com/gnelabs/NateTradeOpeningRange/blob/main/example_analysis.jpg?raw=true)
 
 ## Plotting results
-A helper plotting library is included if you want to visualize performance.
+A helper plotting library is included if you want to visualize performance. May require additional dependencies.
 ``` python
 from displayplot import display, pull_data
 display(backtest_id = 'hp9BT', table_name = 'results')
