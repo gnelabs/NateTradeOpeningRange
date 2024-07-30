@@ -8,9 +8,9 @@ Initial strategy is an ORB (opening-range breakout) trading strategy, with sever
 ## Architecture
 Redis is used as a general cache between the workers. It runs three tables:
 
-db = 0 For worker task management through celery, and to maintain task consistency. 
-db = 1 For opening_ranges_organized data for the specified ticker. 
-db = 2 For cleaned_data staging.
+1. db = 0 For worker task management through celery, and to maintain task consistency. 
+2. db = 1 For opening_ranges_organized data for the specified ticker. 
+3. db = 2 For cleaned_data staging.
 
 The workers process any available tasks, and return test result data back to Redis as the celery task result.
 The reaper is a seperate task that runs on the same workers, that lifecycles data out of Redis and into MySQL.
@@ -211,6 +211,16 @@ DESC
 
 This should give you results that look like this:
 ![Example usage](https://github.com/gnelabs/NateTradeOpeningRange/blob/main/example_analysis.jpg?raw=true)
+
+## Plotting results
+A helper plotting library is included if you want to visualize performance.
+``` python
+from displayplot import display, pull_data
+display(backtest_id = 'hp9BT', table_name = 'results')
+```
+
+Displaying the plot will open a browser window with the image:
+![Example usage](https://github.com/gnelabs/NateTradeOpeningRange/blob/main/example_plot.jpg?raw=true)
 
 # Development
 ## Building docker container.
