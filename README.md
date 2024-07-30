@@ -300,7 +300,8 @@ The AWS CLI must be installed and configured with access credentials to your acc
 $ sam build --use-container
 ```
 
-Deploy to cloudformation. Use --guided for the initial install to setup your S3 bucket and what not.
+Deploy to cloudformation. Use --guided for the initial install to setup your S3 bucket and what not. 
+Information about the stack will be returned as output values.
 
 ``` bash
 # Deploy the application. Use the guided method so you can fill in information about your S3 bucket and region.
@@ -308,6 +309,10 @@ $ sam deploy --guided
 ```
 
 ## Deploying Docker containers to ECR
+
+The container must be uploaded to your elastic container repo to be usable in AWS.
+The repository URI can be obtained from RepositoryURI output parameter from the Cloudformation stack.
+
 ``` bash
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 919768616786.dkr.ecr.us-east-2.amazonaws.com
 ```

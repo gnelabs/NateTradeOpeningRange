@@ -295,3 +295,7 @@ Outputs:
     Description: "VPC ID."
     Value: {Ref: VPC}
     Export: {Name: {'Fn::Sub': '${AWS::StackName}-VPCId'}}
+  RepositoryURI:
+    Description: "ECR repository URI."
+    Value: { 'Fn::GetAtt' : OpeningRangeRepo.RepositoryUri}
+    Export: {Name: {'Fn::Sub': '${AWS::StackName}-RepositoryUri'}}
